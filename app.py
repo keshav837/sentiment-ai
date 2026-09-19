@@ -1,374 +1,273 @@
-import streamlit as st
+from flask import Flask, request, render_template_string
 import joblib
 import re
 
-# =========================================================
-# PAGE CONFIG
-# =========================================================
+app = Flask(__name__)
 
-st.set_page_config(
-    page_title="SentimentAI",
-    page_icon="🤖",
-    layout="centered"
-)
+model = joblib.load("sentiment_model.pkl")
 
-# =========================================================
-# CUSTOM CSS
-# =========================================================
-
-st.markdown("""
-<style>
-
-.main {
-    background-color: #f8fafc;
-}
-
-.block-container {
-    max-width: 850px;
-    padding-top: 3rem;
-}
-
-.hero {
-    text-align: center;
-    padding: 25px;
-    border-radius: 20px;
-    background: linear-gradient(135deg, #0f172a, #1e3a8a);
-    color: white;
-    margin-bottom: 30px;
-}
-
-.hero h1 {
-    font-size: 42px;
-    margin-bottom: 5px;
-}
-
-.hero p {
-    font-size: 18px;
-    opacity: 0.85;
-}
-
-.result-card {
-    padding: 25px;
-    border-radius: 18px;
-    text-align: center;
-    margin-top: 20px;
-}
-
-.positive {
-    background-color: #dcfce7;
-    border: 1px solid #22c55e;
-}
-
-.negative {
-    background-color: #fee2e2;
-    border: 1px solid #ef4444;
-}
-
-.tech-card {
-    padding: 20px;
-    border-radius: 15px;
-    background-color: #f1f5f9;
-    border: 1px solid #e2e8f0;
-    margin-top: 20px;
-}
-
-.footer {
-    text-align: center;
-    color: #64748b;
-    margin-top: 40px;
-}
-
-</style>
-""", unsafe_allow_html=True)
-
-
-# =========================================================
-# LOAD MODEL
-# =========================================================
-
-@st.cache_resource
-def load_model():
-    return joblib.load("sentiment_model.pkl")
-
-
-model = load_model()
-
-
-# =========================================================
-# TEXT CLEANING
-# =========================================================
 
 def clean_text(text):
-
     text = text.lower()
-
-    text = re.sub(
-        r"<.*?>",
-        " ",
-        text
-    )
-
-    text = re.sub(
-        r"http\S+|www\S+|https\S+",
-        " ",
-        text
-    )
-
-    text = re.sub(
-        r"\s+",
-        " ",
-        text
-    )
-
+    text = re.sub(r"<.*?>", " ", text)
+    text = re.sub(r"http\S+|www\S+|https\S+", " ", text)
+    text = re.sub(r"\s+", " ", text)
     return text.strip()
 
 
-# =========================================================
-# PREDICTION
-# =========================================================
+HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SentimentAI</title>
 
-def predict_sentiment(text):
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1">
 
-    cleaned_text = clean_text(text)
+    <style>
 
-    prediction = model.predict(
-        [cleaned_text]
-    )[0]
+        * {
+            box-sizing: border-box;
+        }
 
-    probabilities = model.predict_proba(
-        [cleaned_text]
-    )[0]
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0f172a;
+            color: white;
+        }
 
-    confidence = max(probabilities) * 100
+        .container {
+            max-width: 800px;
+            margin: auto;
+            padding: 30px 20px;
+        }
 
-    return prediction, confidence
+        .hero {
+            text-align: center;
+            padding: 35px 20px;
+            background: linear-gradient(
+                135deg,
+                #1e3a8a,
+                #312e81
+            );
+            border-radius: 20px;
+        }
+
+        .hero h1 {
+            font-size: 42px;
+            margin: 0;
+        }
+
+        .hero p {
+            color: #cbd5e1;
+        }
+
+        .card {
+            margin-top: 25px;
+            background: #1e293b;
+            padding: 25px;
+            border-radius: 18px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 150px;
+            padding: 15px;
+            border-radius: 12px;
+            border: none;
+            font-size: 16px;
+            resize: vertical;
+        }
+
+        button {
+            width: 100%;
+            margin-top: 15px;
+            padding: 15px;
+            border: none;
+            border-radius: 12px;
+            background: #2563eb;
+            color: white;
+            font-size: 17px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        .positive {
+            margin-top: 20px;
+            padding: 20px;
+            text-align: center;
+            border-radius: 15px;
+            background: #14532d;
+        }
+
+        .negative {
+            margin-top: 20px;
+            padding: 20px;
+            text-align: center;
+            border-radius: 15px;
+            background: #7f1d1d;
+        }
+
+        .info {
+            line-height: 1.8;
+            color: #cbd5e1;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 30px;
+            color: #94a3b8;
+        }
+
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <div class="hero">
+
+        <h1>🤖 SentimentAI</h1>
+
+        <p>
+            Machine Learning Based Sentiment Analysis
+        </p>
+
+    </div>
 
 
-# =========================================================
-# HERO
-# =========================================================
+    <div class="card">
 
-st.markdown("""
-<div class="hero">
+        <h2>Analyze Your Text</h2>
 
-<h1>🤖 SentimentAI</h1>
+        <form method="POST">
 
-<p>
-Machine Learning Based Sentiment Analysis
-</p>
+            <textarea
+                name="text"
+                placeholder="Example: I really loved this product!"
+                required
+            ></textarea>
 
-</div>
-""", unsafe_allow_html=True)
+            <button type="submit">
+                🔍 Analyze Sentiment
+            </button>
 
-
-# =========================================================
-# INTRODUCTION
-# =========================================================
-
-st.markdown(
-"""
-### 🧠 Analyze Your Text
-
-Enter any **English sentence or review** below.
-The machine learning model will classify it as:
-
-- 😊 Positive
-- 😞 Negative
-
-and provide a confidence score.
-"""
-)
+        </form>
 
 
-# =========================================================
-# INPUT
-# =========================================================
+        {% if result %}
 
-text = st.text_area(
-    "Enter your text",
-    height=150,
-    placeholder="Example: I absolutely loved this product!"
-)
+            {% if result == "positive" %}
 
+                <div class="positive">
 
-# =========================================================
-# ANALYZE BUTTON
-# =========================================================
+                    <h2>😊 POSITIVE</h2>
 
-if st.button(
-    "🔍 Analyze Sentiment",
-    use_container_width=True
-):
-
-    if not text.strip():
-
-        st.warning(
-            "Please enter some text first."
-        )
-
-    else:
-
-        with st.spinner(
-            "Analyzing sentiment..."
-        ):
-
-            sentiment, confidence = predict_sentiment(
-                text
-            )
-
-        # =============================================
-        # POSITIVE
-        # =============================================
-
-        if sentiment == "positive":
-
-            st.markdown(
-                f"""
-                <div class="result-card positive">
-
-                <h2>😊 POSITIVE</h2>
-
-                <p>
-                The model detected a positive sentiment.
-                </p>
-
-                <h3>
-                Confidence: {confidence:.2f}%
-                </h3>
+                    <p>
+                        Confidence: {{ confidence }}%
+                    </p>
 
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
 
-        # =============================================
-        # NEGATIVE
-        # =============================================
+            {% else %}
 
-        else:
+                <div class="negative">
 
-            st.markdown(
-                f"""
-                <div class="result-card negative">
+                    <h2>😞 NEGATIVE</h2>
 
-                <h2>😞 NEGATIVE</h2>
-
-                <p>
-                The model detected a negative sentiment.
-                </p>
-
-                <h3>
-                Confidence: {confidence:.2f}%
-                </h3>
+                    <p>
+                        Confidence: {{ confidence }}%
+                    </p>
 
                 </div>
-                """,
-                unsafe_allow_html=True
-            )
 
-        # =============================================
-        # CONFIDENCE BAR
-        # =============================================
+            {% endif %}
 
-        st.write("### Confidence")
+        {% endif %}
 
-        st.progress(
-            int(confidence)
+    </div>
+
+
+    <div class="card">
+
+        <h2>⚙️ Model Information</h2>
+
+        <div class="info">
+
+            <b>Algorithm:</b>
+            Logistic Regression
+
+            <br>
+
+            <b>Feature Extraction:</b>
+            TF-IDF
+
+            <br>
+
+            <b>Task:</b>
+            Binary Sentiment Classification
+
+            <br>
+
+            <b>Dataset:</b>
+            IMDb Movie Reviews
+
+            <br>
+
+            <b>Classes:</b>
+            Positive / Negative
+
+        </div>
+
+    </div>
+
+
+    <footer>
+
+        Built with Python + Flask + Scikit-learn
+
+    </footer>
+
+</div>
+
+</body>
+</html>
+"""
+
+
+@app.route("/", methods=["GET", "POST"])
+def home():
+
+    result = None
+    confidence = None
+
+    if request.method == "POST":
+
+        text = request.form["text"]
+
+        cleaned = clean_text(text)
+
+        result = model.predict([cleaned])[0]
+
+        probabilities = model.predict_proba([cleaned])[0]
+
+        confidence = round(
+            max(probabilities) * 100,
+            2
         )
 
-
-# =========================================================
-# TECHNICAL INFORMATION
-# =========================================================
-
-st.markdown(
-"""
-<div class="tech-card">
-
-<h3>⚙️ Model Information</h3>
-
-<b>Algorithm:</b> Logistic Regression<br>
-
-<b>Feature Extraction:</b> TF-IDF<br>
-
-<b>Task:</b> Binary Sentiment Classification<br>
-
-<b>Classes:</b> Positive / Negative<br>
-
-<b>Dataset:</b> IMDb Movie Reviews<br>
-
-<b>Language:</b> English
-
-</div>
-""",
-unsafe_allow_html=True
-)
-
-
-# =========================================================
-# HOW IT WORKS
-# =========================================================
-
-st.markdown("### 🔬 How It Works")
-
-st.code(
-"""
-User Text
-    ↓
-Text Cleaning
-    ↓
-TF-IDF Vectorization
-    ↓
-Logistic Regression
-    ↓
-Positive / Negative
-    ↓
-Confidence Score
-""",
-language="text"
-)
-
-
-# =========================================================
-# EXAMPLES
-# =========================================================
-
-st.markdown("### 🧪 Try These Examples")
-
-col1, col2 = st.columns(2)
-
-with col1:
-
-    st.info(
-        "😊 I absolutely loved this movie!"
-    )
-
-with col2:
-
-    st.error(
-        "😞 This movie was terrible."
+    return render_template_string(
+        HTML,
+        result=result,
+        confidence=confidence
     )
 
 
-# =========================================================
-# FOOTER
-# =========================================================
-
-st.markdown(
-"""
-<div class="footer">
-
-<hr>
-
-<p>
-Built using Python • Scikit-learn • Streamlit
-</p>
-
-<p>
-SentimentAI — Machine Learning Project
-</p>
-
-</div>
-""",
-unsafe_allow_html=True
-  )
+if __name__ == "__main__":
+    app.run()
